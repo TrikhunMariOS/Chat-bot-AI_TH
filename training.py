@@ -3,34 +3,30 @@ import json
 import pickle
 import numpy as np
 
-import nltk
-nltk.download('wordnet')
-from nltk.stem import WordNetLemmatizer
+from pythainlp.tokenize import word_tokenize
 
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Activation, Dropout
 from tensorflow.keras.optimizers import SGD
 
-lemmatizer = WordNetLemmatizer()
-
+#นำเข้าข้อมูลไฟล์จาก intents.json
 with open('intents.json', encoding='utf-8') as f:
     intents = json.load(f)
-
 
 words = []
 classes = []
 documents = []
-ignore_letters = ['?','!','.',',']
+ignore_letters = ['?','!','.',',','น่ะ','เอิ่ม','พอดี','แล้ว','อ่ะ','อะ',' ']
 
 for intent in intents['intents']:
     for pattern in intent['patterns']:
-        word_list = nltk.word_tokenize(pattern)
+        word_list = word_tokenize(pattern, keep_whitespace=False)
         words.extend(word_list)
-        documents.append((word_list,intent['tag']))
+        documents.append((word_list, intent['tag']))
         if intent['tag'] not in classes:
             classes.append(intent['tag'])
 
-words = [lemmatizer.lemmatize(word) for word in words if word not in ignore_letters]
+words = [word for word in words if word not in ignore_letters]
 words = sorted(set(words))
 
 classes = sorted(set(classes))
@@ -38,14 +34,12 @@ classes = sorted(set(classes))
 pickle.dump(words, open('words.pkl', 'wb'))
 pickle.dump(classes, open('classes.pkl', 'wb'))
 
-
 training = []
 output_empty = [0] * len(classes)
 
 for document in documents:
     bag = []
     word_patterns = document[0]
-    word_patterns = [lemmatizer.lemmatize(word.lower()) for word in word_patterns]
     for word in words:
         bag.append(1) if word in word_patterns else bag.append(0)
 
@@ -66,7 +60,7 @@ model.add(Dense(64, activation='relu'))
 model.add(Dropout(0.5))
 model.add(Dense(len(train_y[0]), activation='softmax'))
 
-
+#การเทรนนิ่ง AI-----------------------------------------------------
 from tensorflow.keras.optimizers.schedules import ExponentialDecay
 
 initial_learning_rate = 0.01
@@ -78,6 +72,11 @@ sgd = SGD(learning_rate=lr_schedule, momentum=0.9, nesterov=True)
 
 model.compile(loss='categorical_crossentropy', optimizer=sgd, metrics=['accuracy'])
 
-hist = model.fit(np.array(train_x), np.array(train_y), epochs=200, batch_size=5, verbose=1)
+#Early stopping เป็นเทคนิคที่ใช้ในการฝึกอบรมโมเดล deep learning เพื่อป้องกัน overfitting ,โดยจะหยุดการเทรนนิ่งเมื่อโมเดลไม่ไม่การปรับปรุงเพิ่มเติม
+from tensorflow.keras.callbacks import EarlyStopping
+
+early_stopping = EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
+
+hist = model.fit(np.array(train_x), np.array(train_y), epochs=500, batch_size=5, verbose=1, validation_split=0.2, callbacks=[early_stopping])
 model.save('chatbot_model.model.h5',hist)
-print('done')
+print('----------------','AI Training is done','----------------')
